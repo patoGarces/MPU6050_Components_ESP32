@@ -5,10 +5,17 @@
 #include "esp_log.h"
 #include "math.h"
 
+
+#define PRIORITY_MPU    5
+#define TIMER_GROUP_MPU TIMER_GROUP_0
+#define TIMER_NUM_MPU   TIMER_0
+
+#define LED_PIN 27
+
 /* Configuracion I2C */
-#define MPU_INT     32      //TODO:implementar
-#define MPU_SDA     25
-#define MPU_SCL     27
+//#define MPU_INT     31      //TODO:implementar
+#define MPU_SDA     32
+#define MPU_SCL     33
 #define MPU_FREQ    400000
 #define MPU_ADDR    0x68
 
@@ -28,12 +35,15 @@
 
 #define RAD_TO_DEG 57.295779513082320876798154814105
 #define PI 3.14159265359
-#define INTERVAL_FILTER 0.001                        //1ms
 
+/* Periodo de muestreo */
+#define MPU_PERIOD_US   2000
 
 TaskHandle_t xHandleMPU= NULL;
 static void vTaskMpu(void *pvParameters);
+static bool IRAM_ATTR timerInterrupt(void *args);
 
+static SemaphoreHandle_t semaphoreReadMpu;
 
 const i2c_port_t  i2c_port = I2C_NUM_0;
 uint8_t vDATA[6];
@@ -60,26 +70,23 @@ void i2c_init(void){
 }
 
 /*
-*   Lectura de i2c 
+*   Lectura de i2c de 8 bits
 *   \param: direccion de lectura, longitud
 */
-void i2c_read(int8_t readAddr,uint8_t len){
+uint8_t i2c_read(int8_t readAddr){
+    uint8_t data = 0;
 
     i2c_cmd_handle_t cmd= i2c_cmd_link_create();
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (MPU_ADDR << 1) | I2C_MASTER_WRITE, ACK_CHECK_EN);   // modo escritura
 
     i2c_master_write_byte(cmd, readAddr, ACK_CHECK_EN);                             // escribo la direccion a leer
-    i2c_master_start(cmd);                                                          // 
+    i2c_master_start(cmd); 
         
     i2c_master_write_byte(cmd, MPU_ADDR << 1 | I2C_MASTER_READ, ACK_CHECK_EN);      // modo lectura
-    if(len > 1){
-        //  i2c_master_read(cmd, data, len - 1, ACK_VAL);                              // leo el dato y sigo leyendo
-        i2c_master_read(cmd, vDATA, len - 1, ACK_VAL);                              // leo el dato y sigo leyendo
-    }
-    i2c_master_read_byte(cmd, vDATA + len - 1, NACK_VAL);                            // leo el dato y es la ultima lectura
 
- 
+    i2c_master_read_byte(cmd, &data, NACK_VAL);                                     // leo el dato y es la ultima lectura
+
     i2c_master_stop(cmd);                                                           // detengo comunicacion i2c
     esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_RATE_MS);
     i2c_cmd_link_delete(cmd);
@@ -87,6 +94,7 @@ void i2c_read(int8_t readAddr,uint8_t len){
     if(ret != ESP_OK){
         ESP_LOGE(I2C_TAG,"ERROR LECTURA: FUNCION(%s), ERROR: %s\n",__func__, esp_err_to_name(ret));
     }
+    return data;
 }
 
 /*
@@ -125,7 +133,7 @@ uint16_t i2c_readReg(int8_t readAddr){
 *   Escritura de i2c
 *   \param: writeAddr: direccion a escribir
 *   \param: writeVal:  valor a escribir
-*   \param: longitud
+*   \param: len: longitud
 */
 void i2c_write(int8_t writeAddr,uint8_t writeVal, uint16_t len){
 
@@ -147,31 +155,33 @@ void i2c_write(int8_t writeAddr,uint8_t writeVal, uint16_t len){
     }
 }
 
-
 /*
 *   Funcion para inicializar el MPU6050
 *   Durante 100ms se realiza la calibracion
 */
-void mpu_init(void){
+esp_err_t mpu_init(void){
     uint8_t i,j;
     float vSumCalibAngle[3]={0};
 
     i2c_init();
     printf("i2c inicializado\n");
 
-    printf("power_reg: %d\n",i2c_readReg(0x6B));
-
     /* power managment 1*/
     i2c_write(0x6B,0x00,1);
+
+    printf("power_reg: %x\n",i2c_read(0x6B));
 
     if(i2c_readReg(0x6B)>>8 == 0x00){
         printf("mpu configurado\n");
     }
     else{
         printf("mpu ERROR CONFIG\n");
+        return ESP_FAIL;
     }
 
-    xTaskCreate(vTaskMpu,"tarea Mpu",4096,NULL,3,&xHandleMPU);                                  //corregir tamaño de pila y prioridad
+    xTaskCreate(vTaskMpu,"tarea Mpu",4096,NULL,PRIORITY_MPU,&xHandleMPU);                                  //corregir tamaño de pila y prioridad
+
+    initTimer();
 
     // printf("Calibrando NO MOVER\n");
     // vTaskDelay(pdMS_TO_TICKS(1000));
@@ -192,10 +202,35 @@ void mpu_init(void){
     // for(j=0;j<3;j++){
     //     printf("angulo %d resul: %f\n",j,getAngle(j));
     //     }
+    return ESP_OK;
 }
 
 void mpu_deInit(void){
     vTaskDelete(xHandleMPU);
+}
+
+void initTimer(void){
+
+    timer_config_t timer = {
+        .auto_reload = TIMER_AUTORELOAD_EN,
+        .divider = 80,                         // 80mhz / 80 = 1MHZ = 1us
+        .counter_dir = TIMER_COUNT_UP,
+        .counter_en = TIMER_PAUSE,
+        .alarm_en = TIMER_ALARM_EN,
+    };
+
+    timer_init(TIMER_GROUP_MPU,TIMER_NUM_MPU,&timer);
+    timer_set_alarm_value(TIMER_GROUP_MPU,TIMER_NUM_MPU, MPU_PERIOD_US);
+    timer_isr_callback_add(TIMER_GROUP_MPU,TIMER_NUM_MPU,timerInterrupt,NULL, ESP_INTR_FLAG_IRAM );
+    timer_set_counter_value(TIMER_GROUP_MPU,TIMER_NUM_MPU,0);
+    timer_enable_intr(TIMER_GROUP_MPU, TIMER_NUM_MPU);
+    timer_start(TIMER_GROUP_MPU,TIMER_NUM_MPU);
+}
+
+static bool IRAM_ATTR timerInterrupt(void * args) {
+    BaseType_t high_task_awoken = pdFALSE;
+    xSemaphoreGiveFromISR(semaphoreReadMpu, &high_task_awoken);
+    return (high_task_awoken == pdTRUE);
 }
 
 /*
@@ -225,37 +260,45 @@ float getAngle(uint8_t eje){
     return vAngles[eje];//-vAngles_calib[eje]+90;
 }
 
-void mpu_fillQueue(void){
+// void mpu_fillQueue(void){
 
-//TODO: crear funcion que carga la cola 
-}
+// //TODO: crear funcion que carga la cola 
+// }
 
 /*
 *   Tarea para calculo de angulos del MPU6050
-*   Se ejecuta a intervalos regulares definidos en INTERVAL_FILTER
 */
 static void vTaskMpu(void *pvParameters){                   // TODO: agregar cola para pasar tareas a la IMU, ademas se debe ejecutar cada 1ms
     uint8_t i;
 
+    semaphoreReadMpu = xSemaphoreCreateBinary();
+
+    if (semaphoreReadMpu == NULL) {
+        printf("No se pudo crear el semaforo\n");
+    }
+
     for(;;){
+        if (xSemaphoreTake(semaphoreReadMpu, portMAX_DELAY) == pdPASS) {
 
-        mpu_readAllAxis();
+            gpio_set_level(LED_PIN,1);
+            mpu_readAllAxis();
 
-        //Calcular los ángulos con acelerometro
-        vAnglesAcc[0]=atan(vACC[1]/sqrt(pow(vACC[0],2) + pow(vACC[2],2)))*(180.0/PI);
-        vAnglesAcc[1]=atan(-vACC[0]/sqrt(pow(vACC[1],2) + pow(vACC[2],2)))*(180.0/PI);                      // OJO SIGNO -
-        // vAnglesAcc[2]=0;                                                                                 // falta implementar
-        vAnglesAcc[2]=atan(-vACC[2]/sqrt(pow(vACC[0],2) + pow(vACC[1],2)))*(180.0/PI);
+            // //Calcular los ángulos con acelerometro
+            // vAnglesAcc[0]=atan(vACC[1]/sqrt(pow(vACC[0],2) + pow(vACC[2],2)))*(180.0/PI);
+            // vAnglesAcc[1]=atan(-vACC[0]/sqrt(pow(vACC[1],2) + pow(vACC[2],2)))*(180.0/PI);                      // OJO SIGNO -
+            // // vAnglesAcc[2]=0;                                                                                 // falta implementar
+            // vAnglesAcc[2]=atan(-vACC[2]/sqrt(pow(vACC[0],2) + pow(vACC[1],2)))*(180.0/PI);
 
-        for(i=0;i<3;i++){
-        
-            //Calcular angulo de rotación con giroscopio y filtro complemento  
-            vAngles[i] = (0.98*(vAngles_ant[i]+(vGYRO[i]/131)*INTERVAL_FILTER) + 0.02*vAnglesAcc[i]);
-            vAngles_ant[i] = vAngles[i];
+            // for(i=0;i<3;i++){
+            
+            //     //Calcular angulo de rotación con giroscopio y filtro complementario  
+            //     vAngles[i] = (0.98*(vAngles_ant[i]+(vGYRO[i]/131)*INTERVAL_FILTER) + 0.02*vAnglesAcc[i]);
+            //     vAngles_ant[i] = vAngles[i];
 
-        }
-        // vAngles[2]=0;                                                                                    // falta implementar
-        // vAngles_ant[2]=0;
-        vTaskDelay(pdMS_TO_TICKS(INTERVAL_FILTER*1000));                                                    //todo: reemplazar por algo mas preciso
+            // }
+            gpio_set_level(LED_PIN,0);
+            // vAngles[2]=0;                                                                                    // falta implementar
+            // vAngles_ant[2]=0;
+       }
     }
 }

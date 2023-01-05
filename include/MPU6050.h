@@ -1,7 +1,8 @@
 // #ifndef __MPU6050_H__
 // #define __MPU6050_H__
 #include "stdint.h"
-
+#include "esp_err.h"
+#include "driver/timer.h"
 
 #define acc2ms(ms)(float)(ms * (9.81/16384.0))
 #define gyro2rads(gyro)(float)(gyro * (250.0/32768.0))
@@ -23,14 +24,16 @@ enum{
 
 
 void i2c_init(void);
-void i2c_read(int8_t readAddr,uint8_t len);
+uint8_t i2c_read(int8_t readAddr);
 uint16_t i2c_readReg(int8_t readAddr);
 void i2c_write(int8_t writeAddr,uint8_t writeVal, uint16_t len);
-void mpu_init(void);
+esp_err_t mpu_init(void);
 int16_t mpu_readAxis(uint8_t axis);
 void mpu_readAllAxis(void);
 void mpu_deInit(void);
 float getAngle(uint8_t eje);
+
+void initTimer(void);
 
 
 
