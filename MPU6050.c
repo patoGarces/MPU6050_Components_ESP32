@@ -260,6 +260,18 @@ float getAngle(uint8_t eje){
     return vAngles[eje];//-vAngles_calib[eje]+90;
 }
 
+rawData_t getRawData(){
+    rawData_t rawData;
+
+    rawData.accX = vACC[0];
+    rawData.accY = vACC[1];
+    rawData.accZ = vACC[2];
+    rawData.gyX = vGYRO[0];
+    rawData.gyY = vGYRO[1];
+    rawData.gyZ = vGYRO[2];
+    return rawData;
+}
+
 // void mpu_fillQueue(void){
 
 // //TODO: crear funcion que carga la cola 
@@ -282,6 +294,7 @@ static void vTaskMpu(void *pvParameters){                   // TODO: agregar col
 
             gpio_set_level(LED_PIN,1);
             mpu_readAllAxis();
+            
 
             // //Calcular los ángulos con acelerometro
             // vAnglesAcc[0]=atan(vACC[1]/sqrt(pow(vACC[0],2) + pow(vACC[2],2)))*(180.0/PI);

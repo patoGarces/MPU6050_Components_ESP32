@@ -22,16 +22,28 @@ enum{
     AXIS_ANGLE_Z
 };
 
+typedef struct {
+    int16_t accX;
+    int16_t accY;
+    int16_t accZ;
+    int16_t gyX;
+    int16_t gyY;
+    int16_t gyZ;
+}rawData_t;
 
+/* Funciones para control de i2c*/
 void i2c_init(void);
 uint8_t i2c_read(int8_t readAddr);
 uint16_t i2c_readReg(int8_t readAddr);
 void i2c_write(int8_t writeAddr,uint8_t writeVal, uint16_t len);
+
+/* Funciones para control de MPU*/
 esp_err_t mpu_init(void);
 int16_t mpu_readAxis(uint8_t axis);
 void mpu_readAllAxis(void);
 void mpu_deInit(void);
 float getAngle(uint8_t eje);
+rawData_t getRawData();
 
 void initTimer(void);
 
