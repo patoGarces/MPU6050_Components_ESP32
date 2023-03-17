@@ -88,9 +88,9 @@ uint8_t i2c_read(int8_t readAddr){
     i2c_master_read_byte(cmd, &data, NACK_VAL);                                     // leo el dato y es la ultima lectura
 
     i2c_master_stop(cmd);                                                           // detengo comunicacion i2c
-    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_RATE_MS);
+    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_PERIOD_MS);
     i2c_cmd_link_delete(cmd);
-    
+
     if(ret != ESP_OK){
         ESP_LOGE(I2C_TAG,"ERROR LECTURA: FUNCION(%s), ERROR: %s\n",__func__, esp_err_to_name(ret));
     }
@@ -118,7 +118,7 @@ uint16_t i2c_readReg(int8_t readAddr){
     i2c_master_read_byte(cmd, &data[1], NACK_VAL);                                   // leo el dato y es la ultima lectura
  
     i2c_master_stop(cmd);                                                           // detengo comunicacion i2c
-    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_RATE_MS);
+    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_PERIOD_MS);
     i2c_cmd_link_delete(cmd);
     
     if(ret != ESP_OK){
@@ -147,7 +147,7 @@ void i2c_write(int8_t writeAddr,uint8_t writeVal, uint16_t len){
         i2c_master_write_byte(cmd, writeVal, ACK_CHECK_EN);
     }
     i2c_master_stop(cmd);
-    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_RATE_MS);
+    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_PERIOD_MS);
     i2c_cmd_link_delete(cmd);
   
     if(ret != ESP_OK){

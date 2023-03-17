@@ -1,5 +1,5 @@
-// #ifndef __MPU6050_H__
-// #define __MPU6050_H__
+#ifndef __MPU6050_H__
+#define __MPU6050_H__
 #include "stdint.h"
 #include "esp_err.h"
 #include "driver/timer.h"
@@ -47,31 +47,4 @@ rawData_t getRawData();
 
 void initTimer(void);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// #endif
+#endif
