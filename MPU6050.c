@@ -8,7 +8,7 @@
 
 
 #define PRIORITY_MPU    5
-#define CORE_MPU        0
+#define MPU_CORE        1
 
 #define LED_PIN 27
 
@@ -182,7 +182,7 @@ esp_err_t mpu_init(void){
         return ESP_FAIL;
     }
 
-    xTaskCreatePinnedToCore(vTaskMpu,"Task Mpu",4096,NULL,PRIORITY_MPU,&xHandleMPU,CORE_MPU);
+    xTaskCreatePinnedToCore(vTaskMpu,"Task Mpu",4096,NULL,PRIORITY_MPU,&xHandleMPU,MPU_CORE);
 
     initTimer();
 
