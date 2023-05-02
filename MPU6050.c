@@ -209,28 +209,44 @@ void mpu_deInit(void){
     vTaskDelete(xHandleMPU);
 }
 
-void initTimer(void){
+static bool example_timer_callback(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx){
 
-    timer_config_t timer = {
-        .auto_reload = TIMER_AUTORELOAD_EN,
-        .divider = 80,                         // 80mhz / 80 = 1MHZ = 1us
-        .counter_dir = TIMER_COUNT_UP,
-        .counter_en = TIMER_PAUSE,
-        .alarm_en = TIMER_ALARM_EN,
-    };
-
-    timer_init(TIMER_GROUP_MPU,TIMER_NUM_MPU,&timer);
-    timer_set_alarm_value(TIMER_GROUP_MPU,TIMER_NUM_MPU, MPU_PERIOD_US);
-    timer_isr_callback_add(TIMER_GROUP_MPU,TIMER_NUM_MPU,timerInterrupt,NULL, ESP_INTR_FLAG_IRAM );
-    timer_set_counter_value(TIMER_GROUP_MPU,TIMER_NUM_MPU,0);
-    timer_enable_intr(TIMER_GROUP_MPU, TIMER_NUM_MPU);
-    timer_start(TIMER_GROUP_MPU,TIMER_NUM_MPU);
-}
-
-static bool IRAM_ATTR timerInterrupt(void * args) {
     BaseType_t high_task_awoken = pdFALSE;
     xSemaphoreGiveFromISR(semaphoreReadMpu, &high_task_awoken);
     return (high_task_awoken == pdTRUE);
+}
+
+void initTimer(void){
+
+    gptimer_handle_t handleTimer = NULL;
+
+    gptimer_config_t timerConfig = {
+
+        .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+        .direction = GPTIMER_COUNT_UP,
+        .resolution_hz = 1000000,
+    };
+
+    ESP_ERROR_CHECK(gptimer_new_timer(&timerConfig,&handleTimer));
+    
+    gptimer_alarm_config_t alarmMpu ={
+        .alarm_count = 200000,
+        .reload_count = 0,
+        .flags.auto_reload_on_alarm = true,
+    };
+
+    ESP_ERROR_CHECK(gptimer_set_alarm_action(handleTimer,&alarmMpu));
+    
+    gptimer_event_callbacks_t newCallback ={
+        .on_alarm = example_timer_callback,
+    };
+
+    ESP_ERROR_CHECK(gptimer_register_event_callbacks(handleTimer,&newCallback,NULL));
+    ESP_ERROR_CHECK(gptimer_enable(handleTimer));
+    ESP_ERROR_CHECK(gptimer_start(handleTimer));
+
+    printf("timer configurado OK\n");
+
 }
 
 /*

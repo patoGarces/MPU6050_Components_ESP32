@@ -2,7 +2,8 @@
 #define __MPU6050_H__
 #include "stdint.h"
 #include "esp_err.h"
-#include "driver/timer.h"
+// #include "driver/timer.h"
+#include "driver/gptimer.h"
 
 #define acc2ms(ms)(float)(ms * (9.81/16384.0))
 #define gyro2rads(gyro)(float)(gyro * (250.0/32768.0))
