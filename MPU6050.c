@@ -6,11 +6,8 @@
 #include "esp_log.h"
 #include "math.h"
 
-
 #define PRIORITY_MPU    5
 #define MPU_CORE        1
-
-#define LED_PIN 27
 
 /* Configuracion I2C */
 //#define MPU_INT     31      //TODO:implementar
@@ -34,12 +31,18 @@
 #define MPU_TAG     "MPU6050"
 
 #define RAD_TO_DEG 57.295779513082320876798154814105
-#define PI 3.14159265359
 
 /* Periodo de muestreo */
 #define PERIOD_READ_MPU_US 2500
 /* Periodo de calculo para el filtro complementario*/
 #define INTERVAL_FILTER     PERIOD_READ_MPU_US/1000000
+
+
+const float MOUNT_OFFSET_AXIS[3]={
+    0.00,
+    0.00,
+    0.00
+};
 
 TaskHandle_t xHandleMPU= NULL;
 static void vTaskMpu(void *pvParameters);
@@ -292,7 +295,7 @@ static void vTaskMpu(void *pvParameters){                   // TODO: agregar col
 
     semaphoreReadMpu = xSemaphoreCreateBinary();
 
-    newAnglesQueue = xQueueCreate(100,sizeof(vAngles));
+    newAnglesQueue = xQueueCreate(1,sizeof(vAngles));
 
     if (semaphoreReadMpu == NULL) {
         printf("No se pudo crear el semaforo\n");
@@ -303,16 +306,23 @@ static void vTaskMpu(void *pvParameters){                   // TODO: agregar col
 
             // gpio_set_level(LED_PIN,1);
             mpu_readAllAxis();
-            
-            //Calcular los ángulos con acelerometro
-            vAnglesAcc[0]=atan(vACC[1]/sqrt(pow(vACC[0],2) + pow(vACC[2],2)))*(180.0/PI);
-            vAnglesAcc[1]=atan(-vACC[0]/sqrt(pow(vACC[1],2) + pow(vACC[2],2)))*(180.0/PI);
-            vAnglesAcc[2]=atan(-vACC[2]/sqrt(pow(vACC[0],2) + pow(vACC[1],2)))*(180.0/PI);
 
-            for(eje=0;eje<3;eje++){
+            //Calcular los ángulos con acelerometro
+            vAnglesAcc[AXIS_ANGLE_X]  = (atan2(-vACC[1],vACC[2])*180.0)/M_PI;
+            vAnglesAcc[AXIS_ANGLE_Y] = (atan2(vACC[0], sqrt(vACC[1]*vACC[1] + vACC[2]*vACC[2]))*180.0)/M_PI;
+            // vAnglesAcc[0]=atan(vACC[1]/sqrt(pow(vACC[0],2) + pow(vACC[2],2)))*(360.0/PI);
+            // vAnglesAcc[1]=atan(-vACC[0]/sqrt(pow(vACC[1],2) + pow(vACC[2],2)))*(180.0/PI);
+            // vAnglesAcc[2]=atan(-vACC[2]/sqrt(pow(vACC[0],2) + pow(vACC[1],2)))*(180.0/PI);
+
+            // EJEMPLO TP PROCESAMIENTO
+            // angleX_ACC = np.arctan(ACC_X/np.sqrt(pow(ACC_Y,2) + pow(ACC_Z,2)))*(180.0/np.pi)
+            // angleY_ACC = np.arctan(ACC_Y/np.sqrt(pow(ACC_X,2) + pow(ACC_Z,2)))*(180.0/np.pi)
+
+            for(eje=0;eje<2;eje++){
                 vAngles[eje] = (0.98*(vAngles_ant[eje]+(vGYRO[eje]/131)*INTERVAL_FILTER) + 0.02*vAnglesAcc[eje]);
+
                 vAngles_ant[eje] = vAngles[eje];
-                vAngles[eje]-= vAngles_calib[eje];
+                vAngles[eje] = vAngles[eje]- vAngles_calib[eje] - MOUNT_OFFSET_AXIS[eje];
             }
             xQueueSend(newAnglesQueue,( void * ) &vAngles, 0);
             // gpio_set_level(LED_PIN,0);
