@@ -6,6 +6,8 @@
 #include "esp_log.h"
 #include "math.h"
 
+#include "../../include/main.h"
+
 #define PRIORITY_MPU    5
 #define MPU_CORE        1
 
@@ -32,10 +34,8 @@
 
 #define RAD_TO_DEG 57.295779513082320876798154814105
 
-/* Periodo de muestreo */
-#define PERIOD_READ_MPU_US 2500
 /* Periodo de calculo para el filtro complementario*/
-#define INTERVAL_FILTER     PERIOD_READ_MPU_US/1000000
+#define INTERVAL_FILTER     PERIOD_IMU_MS/1000
 
 
 const float MOUNT_OFFSET_AXIS[3]={
@@ -233,7 +233,7 @@ static void initTimer(void){
     ESP_ERROR_CHECK(gptimer_new_timer(&timerConfig,&handleTimer));
     
     gptimer_alarm_config_t alarmMpu ={
-        .alarm_count = PERIOD_READ_MPU_US,
+        .alarm_count = PERIOD_IMU_MS*1000,
         .reload_count = 0,
         .flags.auto_reload_on_alarm = true,
     };
@@ -251,7 +251,6 @@ static void initTimer(void){
     printf("timer configurado OK\n");
 
 }
-
 
 /*
 *   Funcion para la lectura de los 3 ejes del acelerometro y los 3 del giroscopo
@@ -304,19 +303,12 @@ static void vTaskMpu(void *pvParameters){                   // TODO: agregar col
     for(;;){
         if (xSemaphoreTake(semaphoreReadMpu, portMAX_DELAY) == pdPASS) {
 
-            // gpio_set_level(LED_PIN,1);
+            // gpio_set_level(13,1);
             mpu_readAllAxis();
 
             //Calcular los ángulos con acelerometro
             vAnglesAcc[AXIS_ANGLE_X]  = (atan2(-vACC[1],vACC[2])*180.0)/M_PI;
             vAnglesAcc[AXIS_ANGLE_Y] = (atan2(vACC[0], sqrt(vACC[1]*vACC[1] + vACC[2]*vACC[2]))*180.0)/M_PI;
-            // vAnglesAcc[0]=atan(vACC[1]/sqrt(pow(vACC[0],2) + pow(vACC[2],2)))*(360.0/PI);
-            // vAnglesAcc[1]=atan(-vACC[0]/sqrt(pow(vACC[1],2) + pow(vACC[2],2)))*(180.0/PI);
-            // vAnglesAcc[2]=atan(-vACC[2]/sqrt(pow(vACC[0],2) + pow(vACC[1],2)))*(180.0/PI);
-
-            // EJEMPLO TP PROCESAMIENTO
-            // angleX_ACC = np.arctan(ACC_X/np.sqrt(pow(ACC_Y,2) + pow(ACC_Z,2)))*(180.0/np.pi)
-            // angleY_ACC = np.arctan(ACC_Y/np.sqrt(pow(ACC_X,2) + pow(ACC_Z,2)))*(180.0/np.pi)
 
             for(eje=0;eje<2;eje++){
                 vAngles[eje] = (0.98*(vAngles_ant[eje]+(vGYRO[eje]/131)*INTERVAL_FILTER) + 0.02*vAnglesAcc[eje]);
@@ -324,8 +316,8 @@ static void vTaskMpu(void *pvParameters){                   // TODO: agregar col
                 vAngles_ant[eje] = vAngles[eje];
                 vAngles[eje] = vAngles[eje]- vAngles_calib[eje] - MOUNT_OFFSET_AXIS[eje];
             }
-            xQueueSend(newAnglesQueue,( void * ) &vAngles, 0);
-            // gpio_set_level(LED_PIN,0);
+            xQueueSend(newAnglesQueue,( void * ) &vAngles, 1);
+            // gpio_set_level(13,0);
        }
     }
 }
