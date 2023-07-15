@@ -189,21 +189,21 @@ esp_err_t mpu_init(void){
 
     initTimer();
 
-    printf("Calibrando NO MOVER\n");
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    // printf("Calibrando NO MOVER\n");
+    // vTaskDelay(pdMS_TO_TICKS(1000));
 
-    for(i=0;i<10;i++){
-        for(j=0;j<3;j++){
-            vSumCalibAngle[j]+=vAngles[j];
-            printf(".");
-            vTaskDelay(pdMS_TO_TICKS(10));
-        }
-    }
+    // for(i=0;i<10;i++){
+    //     for(j=0;j<3;j++){
+    //         vSumCalibAngle[j]+=vAngles[j];
+    //         printf(".");
+    //         vTaskDelay(pdMS_TO_TICKS(10));
+    //     }
+    // }
 
-    for(i=0;i<3;i++){
-        vAngles_calib[i] = vSumCalibAngle[i]/10;
-        printf("Media calculada %d: %f, angulo calib: %f\n",i,vAngles_calib[i],getAngle(i));
-    }
+    // for(i=0;i<3;i++){
+    //     vAngles_calib[i] = vSumCalibAngle[i]/10;
+    //     printf("Media calculada %d: %f, angulo calib: %f\n",i,vAngles_calib[i],getAngle(i));
+    // }
 
     return ESP_OK;
 }
