@@ -27,9 +27,8 @@ typedef struct {
     int16_t gyZ;
 }rawData_t;
 
-
 /* Funciones para control de MPU*/
-esp_err_t mpu_init(void);;
+esp_err_t mpu_init(uint8_t _sclGpio,uint8_t _sdaGpio,uint8_t intGpio);
 void mpu_readAllAxis(void);
 void mpu_deInit(void);
 float getAngle(uint8_t eje);

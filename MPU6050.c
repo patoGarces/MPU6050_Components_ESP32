@@ -12,9 +12,7 @@
 #define MPU_CORE        1
 
 /* Configuracion I2C */
-//#define MPU_INT     31      //TODO:implementar
-#define MPU_SDA     32
-#define MPU_SCL     33
+
 #define MPU_FREQ    400000
 #define MPU_ADDR    0x68
 
@@ -37,35 +35,29 @@
 /* Periodo de calculo para el filtro complementario*/
 #define INTERVAL_FILTER     PERIOD_IMU_MS/1000
 
-
 const float MOUNT_OFFSET_AXIS[3]={
     0.00,
     0.00,
     0.00
 };
 
-TaskHandle_t xHandleMPU= NULL;
-static void vTaskMpu(void *pvParameters);
+static void angleProcessTask(void *pvParameters);
 static void initTimer(void);
 
+TaskHandle_t xHandleMPU= NULL;
 static SemaphoreHandle_t semaphoreReadMpu;
-
 QueueSetHandle_t newAnglesQueue;
 
 const i2c_port_t  i2c_port = I2C_NUM_0;
 int16_t vACC[3],vGYRO[3];
 float vAngles[3],vAngles_calib[3];
 
-
-/* 
-*   Configuracion del periferico i2c
-*/
-static void i2c_init(void){
+static void i2c_init(uint8_t _sclGpio,uint8_t _sdaGpio){
 
     i2c_config_t config_i2c={
         .mode = I2C_MODE_MASTER,
-        .sda_io_num = MPU_SDA,
-        .scl_io_num = MPU_SCL,
+        .sda_io_num = _sdaGpio,
+        .scl_io_num = _sclGpio,
         .sda_pullup_en = GPIO_PULLUP_ENABLE,
         .scl_pullup_en = GPIO_PULLUP_ENABLE,
         .master.clk_speed = MPU_FREQ
@@ -134,7 +126,6 @@ static uint16_t i2c_readReg(int8_t readAddr){
     return (data[0]*0xff)|data[1];
 }
 
-
 /*
 *   Escritura de i2c
 *   \param: writeAddr: direccion a escribir
@@ -165,18 +156,15 @@ static void i2c_write(int8_t writeAddr,uint8_t writeVal, uint16_t len){
 *   Funcion para inicializar el MPU6050
 *   Durante 100ms se realiza la calibracion
 */
-esp_err_t mpu_init(void){
+esp_err_t mpu_init(uint8_t _sclGpio,uint8_t _sdaGpio,uint8_t intGpio) {
     uint8_t i,j;
     float vSumCalibAngle[3]={0.00,0.00,0.00};
 
-    i2c_init();
+    i2c_init(_sclGpio,_sdaGpio);
     printf("i2c inicializado\n");
 
     /* power managment 1*/
     i2c_write(0x6B,0x00,1);
-
-    // printf("power_reg: %x\n",i2c_read(0x6B));
-
     if(i2c_readReg(0x6B)>>8 == 0x00){
         printf("mpu configurado\n");
     }
@@ -185,8 +173,7 @@ esp_err_t mpu_init(void){
         return ESP_FAIL;
     }
 
-    xTaskCreatePinnedToCore(vTaskMpu,"Task Mpu",4096,NULL,PRIORITY_MPU,&xHandleMPU,MPU_CORE);
-
+    xTaskCreatePinnedToCore(angleProcessTask,"angle process task Mpu",4096,NULL,PRIORITY_MPU,&xHandleMPU,MPU_CORE);
     initTimer();
 
     // printf("Calibrando NO MOVER\n");
@@ -204,7 +191,6 @@ esp_err_t mpu_init(void){
     //     vAngles_calib[i] = vSumCalibAngle[i]/10;
     //     printf("Media calculada %d: %f, angulo calib: %f\n",i,vAngles_calib[i],getAngle(i));
     // }
-
     return ESP_OK;
 }
 
@@ -213,7 +199,6 @@ void mpu_deInit(void){
 }
 
 static bool readMpuCb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx){
-
     BaseType_t high_task_awoken = pdFALSE;
     xSemaphoreGiveFromISR(semaphoreReadMpu, &high_task_awoken);
     return (high_task_awoken == pdTRUE);
@@ -222,9 +207,7 @@ static bool readMpuCb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *
 static void initTimer(void){
 
     gptimer_handle_t handleTimer = NULL;
-
     gptimer_config_t timerConfig = {
-
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,
         .direction = GPTIMER_COUNT_UP,
         .resolution_hz = 1000000,
@@ -247,9 +230,6 @@ static void initTimer(void){
     ESP_ERROR_CHECK(gptimer_register_event_callbacks(handleTimer,&newCallback,NULL));
     ESP_ERROR_CHECK(gptimer_enable(handleTimer));
     ESP_ERROR_CHECK(gptimer_start(handleTimer));
-
-    printf("timer configurado OK\n");
-
 }
 
 /*
@@ -267,7 +247,7 @@ void mpu_readAllAxis(void){
 
 /*
  * Permite leer el angulo actual asincronicamente
- * Solo para visualizar o debug, para tareas que necesiten consumir los datos sincronicamente se utiliza una cola 
+ * Solo para visualizar o debug, para tareas que necesiten consumir los datos sincronicamente se utiliza una queue 
  */
 float getAngle(uint8_t eje){
     return vAngles[eje];
@@ -288,7 +268,7 @@ rawData_t getRawData(){
 /*
 *   Tarea para calculo de angulos del MPU6050
 */
-static void vTaskMpu(void *pvParameters){                   // TODO: agregar cola para pasar tareas a la IMU
+static void angleProcessTask(void *pvParameters){
     uint8_t eje;
     float vAnglesAcc[3],vAngles_ant[3];
 
