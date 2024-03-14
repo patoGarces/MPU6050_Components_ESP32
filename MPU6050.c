@@ -156,7 +156,7 @@ static void i2c_write(int8_t writeAddr,uint8_t writeVal, uint16_t len){
 *   Funcion para inicializar el MPU6050
 *   Durante 100ms se realiza la calibracion
 */
-esp_err_t mpu_init(uint8_t _sclGpio,uint8_t _sdaGpio,uint8_t intGpio) {
+esp_err_t mpuInit(uint8_t _sclGpio,uint8_t _sdaGpio,uint8_t intGpio) {
     uint8_t i,j;
     float vSumCalibAngle[3]={0.00,0.00,0.00};
 
@@ -194,7 +194,7 @@ esp_err_t mpu_init(uint8_t _sclGpio,uint8_t _sdaGpio,uint8_t intGpio) {
     return ESP_OK;
 }
 
-void mpu_deInit(void){
+void mpuDeInit(void){
     vTaskDelete(xHandleMPU);
 }
 
@@ -236,7 +236,7 @@ static void initTimer(void){
 *   Funcion para la lectura de los 3 ejes del acelerometro y los 3 del giroscopo
 *   el resultado se almacena en un vector global llamado vACC y vGYRO
 */
-void mpu_readAllAxis(void){
+void mpuReadAllAxis(void){
     uint8_t i;
 
     for(i=0;i<3;i++){
@@ -249,12 +249,12 @@ void mpu_readAllAxis(void){
  * Permite leer el angulo actual asincronicamente
  * Solo para visualizar o debug, para tareas que necesiten consumir los datos sincronicamente se utiliza una queue 
  */
-float getAngle(uint8_t eje){
+float mpuGetAngle(uint8_t eje){
     return vAngles[eje];
 }
 
-rawData_t getRawData(){
-    rawData_t rawData;
+mpu_raw_data_t mpuGetRawData(){
+    mpu_raw_data_t rawData;
 
     rawData.accX = vACC[0];
     rawData.accY = vACC[1];
@@ -284,7 +284,7 @@ static void angleProcessTask(void *pvParameters){
         if (xSemaphoreTake(semaphoreReadMpu, portMAX_DELAY) == pdPASS) {
 
             // gpio_set_level(13,1);
-            mpu_readAllAxis();
+            mpuReadAllAxis();
 
             //Calcular los ángulos con acelerometro
             vAnglesAcc[AXIS_ANGLE_X]  = (atan2(-vACC[1],vACC[2])*180.0)/M_PI;
