@@ -6,7 +6,6 @@
 #include "esp_log.h"
 #include "math.h"
 
-#define PRIORITY_MPU    configMAX_PRIORITIES - 1
 #define MPU_CORE        1
 
 /* Configuracion I2C */
@@ -159,9 +158,6 @@ static void i2c_write(int8_t writeAddr,uint8_t writeVal, uint16_t len) {
 *   Durante 100ms se realiza la calibracion
 */
 esp_err_t mpuInit(mpu6050_init_t initConfig) {
-    uint8_t i,j;
-    float vSumCalibAngle[3]={0.00,0.00,0.00};
-
     i2c_init(initConfig.sclGpio,initConfig.sdaGpio);
     printf("i2c inicializado\n");
 
@@ -218,7 +214,17 @@ esp_err_t mpuInit(mpu6050_init_t initConfig) {
     intervalFilterInSec = initConfig.sampleTimeInMs / 1000.00; 
     intervalFilterInUs = initConfig.sampleTimeInMs * 1000.00;
 
-    xTaskCreatePinnedToCore(angleProcessTask,"angle process task Mpu",4096,NULL,PRIORITY_MPU,&xHandleMPU,MPU_CORE);
+    xTaskCreatePinnedToCore(angleProcessTask,"angle process task Mpu",4096,NULL,initConfig.priorityTask,&xHandleMPU,MPU_CORE);
+    return ESP_OK;
+}
+
+void mpuDeInit(void){
+    vTaskDelete(xHandleMPU);
+}
+
+void mpuCalibrate(void) {
+    uint8_t i,j;
+    float vSumCalibAngle[3]={0.00,0.00,0.00};
 
     printf("Calibrando NO MOVER\n");
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -235,11 +241,6 @@ esp_err_t mpuInit(mpu6050_init_t initConfig) {
         vAngles_calib[i] = vSumCalibAngle[i]/10;
         printf("Media calculada %d: %f, angulo calib: %f\n",i,vAngles_calib[i],mpuGetAngle(i));
     }
-    return ESP_OK;
-}
-
-void mpuDeInit(void){
-    vTaskDelete(xHandleMPU);
 }
 
 static bool readMpuCb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx){

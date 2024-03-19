@@ -49,10 +49,12 @@ typedef struct {
     accel_sensitivity_t accelSensitivity;
     gyro_sensitivity_t gyroSensitivity;
     float sampleTimeInMs;
+    uint8_t priorityTask;
 } mpu6050_init_t;
 
 /* Funciones para control de MPU*/
 esp_err_t mpuInit(mpu6050_init_t initConfig);
+void mpuCalibrate(void);
 void mpuReadAllAxis(void);
 void mpuDeInit(void);
 float mpuGetAngle(uint8_t eje);
