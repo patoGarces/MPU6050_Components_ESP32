@@ -118,7 +118,7 @@ static uint16_t i2c_readReg(int8_t readAddr) {
     i2c_master_read_byte(cmd, &data[1], NACK_VAL);                                   // leo el dato y es la ultima lectura
  
     i2c_master_stop(cmd);                                                           // detengo comunicacion i2c
-    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_PERIOD_MS); // TODO: revisar este timeout
+    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_PERIOD_MS);
     i2c_cmd_link_delete(cmd);
     
     if(ret != ESP_OK){
@@ -246,7 +246,7 @@ static bool readMpuCb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     xSemaphoreGiveFromISR(semaphoreReadMpu, &xHigherPriorityTaskWoken);
 
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);  // fuerzo que el scheduler levante la tarea que toma este semaforo TODO: revisar este cambio
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     return (xHigherPriorityTaskWoken == pdTRUE);
 }
 
