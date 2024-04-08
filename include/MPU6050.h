@@ -33,6 +33,26 @@ typedef enum {
     MPU_GYRO_SENS_2000,
 } gyro_sensitivity_t;
 
+//          DIGITAL LOW PASS FILTER     -> register 0x1A
+//                          ACCEL                               GYRO      
+// DLPF_CFG    Bandwidth(hz)       delay(ms)       Bandwidth(hz)       delay(ms)
+//     0           260             0                   256             0.98        8
+//     1           184             2.0                 188             1.9         1
+//     2           94              3.0                 98              2.8         1
+//     3           44              4.9                 42              4.8         1
+//     4           21              8.5                 20              8.3         1
+//     5           10              13.8                10              13.4        1
+//     6           5               19.0                5               18.6        1
+typedef enum {
+    MPU_LOW_PASS_FILTER_256HZ,
+    MPU_LOW_PASS_FILTER_188HZ,
+    MPU_LOW_PASS_FILTER_98HZ,
+    MPU_LOW_PASS_FILTER_42HZ,
+    MPU_LOW_PASS_FILTER_20HZ,
+    MPU_LOW_PASS_FILTER_10HZ,
+    MPU_LOW_PASS_FILTER_5HZ,
+} low_pass_filter_t;
+
 typedef struct {
     int16_t accX;
     int16_t accY;
@@ -48,6 +68,7 @@ typedef struct {
     uint8_t intGpio;
     accel_sensitivity_t accelSensitivity;
     gyro_sensitivity_t gyroSensitivity;
+    low_pass_filter_t lowPassFilterValue;
     float sampleTimeInMs;
     uint8_t priorityTask;
 } mpu6050_init_t;

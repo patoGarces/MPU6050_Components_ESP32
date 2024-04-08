@@ -13,7 +13,8 @@
 #define MPU_FREQ        400000
 #define MPU_ADDR        0x68
 
-#define PWR_MGMT1_ADDR  0x6B
+#define PWR_MGMT1_ADDR      0x6B
+#define LOW_PASS_FILTER     0x1A
 #define GYRO_CONFIG_ADDR    0x1B
 #define ACCEL_CONFIG_ADDR   0x1C
 
@@ -172,6 +173,10 @@ esp_err_t mpuInit(mpu6050_init_t initConfig) {
         return ESP_FAIL;
     }
 
+    // low pass filter config
+    uint8_t lowPassFilterValue = (uint8_t)(initConfig.lowPassFilterValue & 0x03);
+    i2c_write(LOW_PASS_FILTER,lowPassFilterValue,1);
+
     // Sensibility gyro
     uint8_t gyroSettingSensitivity = (uint8_t)(initConfig.gyroSensitivity & 0x03) << 3;
     i2c_write(GYRO_CONFIG_ADDR,gyroSettingSensitivity,1);
@@ -256,10 +261,14 @@ static bool readMpuCb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *
 *   el resultado se almacena en un vector global llamado vACC y vGYRO
 */
 void mpuReadAllAxis(void){
+
+    // gpio_set_level(14,1);
+    // vTaskDelay(pdMS_TO_TICKS(10));
     for(uint8_t i=0;i<3;i++){
         vACC[i] = i2c_readReg(MPU_ACC_Base + (i*2));
         vGYRO[i] = i2c_readReg(MPU_GYRO_Base + (i*2));
     }
+    // gpio_set_level(14,0);
 }
 
 /*
